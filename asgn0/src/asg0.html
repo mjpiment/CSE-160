@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Vector Drawing</title>
+    </head>
+    <body onload="main()">
+        
+        <!-- This is to display my name  -->
+        <div class="author-card">
+            <span class="name">Michael Pimentel</span>
+            <span class="email">mjpiment@ucsc.edu</span>
+        </div>
+
+        
+
+        <canvas id="example" width="400" height="400">
+            Please use a browser that supports "canvas"
+        </canvas>
+
+        <div class="controls">
+            <div class="section-label">Vectors</div>
+            <div class="vector-grid">
+                <div class="vector-field">
+                    <label>x1</label>
+                    <input type="number" id="x1" value="2.25"/>
+                </div>
+                <div class="vector-field">
+                    <label>x2</label>
+                    <input type="number" id="x2" value="2.25"/>
+                </div>
+                <div class="vector-field">
+                    <label>y1</label>
+                    <input type="number" id="y1" value="-1"/>
+                </div>
+                <div class="vector-field">
+                    <label>y2</label>
+                    <input type="number" id="y2" value="3"/>
+                </div>
+            </div>
+            <input type="button" value="Draw" onclick="handleDrawEvent()"/>
+
+            <hr/>
+
+            <div class="section-label">Operations</div>
+            <div class="row">
+                <select id="operation">
+                    <option value="add">add</option>
+                    <option value="sub">sub</option>
+                    <option value="mul">mul</option>
+                    <option value="div">div</option>
+                    <option value="magnitude">magnitude</option>
+                    <option value="normalize">normalize</option>
+                    <option value="angleBetween">angleBetween</option>
+                    <option value="area">area</option>
+                </select>
+                <div class="vector-field" style="flex:1">
+                    <label>Scalar</label>
+                    <input type="number" id="scalar" value="2"/>
+                </div>
+            </div>
+            <input type="button" value="Draw Operation" onclick="handleDrawOperationEvent()"/>
+        </div>
+
+        <script src="../lib/cuon-matrix-cse160.js"></script>
+        <script src="asg0.js"></script>
+    </body>
+</html>

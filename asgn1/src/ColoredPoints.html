@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Change a point color</title>
+  </head>
+
+  <body onload="main()">
+
+    <div>
+      <h1>Assignment 1: Painting</h1>
+      <h2>Michael Pimentel</h2>
+      <h2 class="email">mjpiment@ucsc.edu</h2>
+    </div>
+
+    <canvas id="webgl" width="400" height="400">
+    Please use a browser that supports "canvas"
+    </canvas>
+    
+    <p id="numdot">XXX</p>
+
+    <div>
+      <input 
+        type="button"
+        id="clear_canvas"
+        name="clear_canvas"
+        value="Clear Canvas"
+      />
+      <p></p>
+    </div>
+
+    <div>
+      <div>Drawing mode:</div>
+      <input 
+        type="button"
+        id="squares"
+        name="squares"
+        value="Squares"
+      />
+      <input 
+        type="button"
+        id="triangles"
+        name="triangles"
+        value="Triangles"
+      />
+      <input
+        type="button"
+        id="circles"
+        name="circles"
+        value="Circles"
+      />
+
+      <p>
+    </div>
+    
+    <!-- Div for the RGB Sliders-->
+    <div>
+      <div>Shape Color:</div>
+      
+      <label for="red">Red:</label>
+      <input 
+        type="range" 
+        id="red"
+        name="red"
+        min="0"
+        max="100"
+        value="100"
+      />
+      
+      <label for="green">Green:</label>
+      <input 
+        type="range"
+        id="green"
+        name="green"
+        min="0"
+        max="100"
+        value="100"
+      />
+      
+      <label for="blue">Blue:</label>
+      <input 
+        type="range"
+        id="blue"
+        name="blue"
+        min="0"
+        max="100"       
+        value="100"
+        />
+      <p> 
+    </div>
+
+    <!-- -->
+    <div>
+      <label for="shape_size">Shape Size:</label>
+      <input 
+        type="range"
+        id="shape_size"
+        name="shape_size"
+        min="10"
+        max="40"
+        value="10"
+      />
+
+      <label for="seg_count">(Circles) Segment Count:</label>
+      <input
+        type="range"
+        id="seg_count"
+        name="seg_count"
+        min="3"
+        max="100"
+        value="10"
+      />
+    </div>
+
+    <script src="../lib/webgl-utils.js"></script>
+    <script src="../lib/webgl-debug.js"></script>
+    <script src="../lib/cuon-utils.js"></script>
+    <script src="Point.js"></script>
+    <script src="Triangle.js"></script>
+    <script src="Circle.js"></script>
+    <script src="ColoredPoints.js"></script>
+
+
+  </body>
+</html>
