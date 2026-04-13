@@ -98,6 +98,9 @@ function addActionsforHtmlUI() {
   // Circles Button
   document.getElementById('circles').onclick = function () { g_selectedType = CIRCLE };
 
+  // Draw the Picture
+  document.getElementById('draw_picture').onclick = function () { drawPicture(); };
+
   // Red Slider
   document.getElementById('red').addEventListener('input', function() { g_selectedColor[0] = this.value / 100; });
 
