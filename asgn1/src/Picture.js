@@ -8,6 +8,7 @@ function drawPictureTriangle(vertices, color) {
   gl.enableVertexAttribArray(a_Position);
   gl.uniform4f(u_FragColor, color[0], color[1], color[2], color[3]);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.disableVertexAttribArray(a_Position);
 }
  
 function drawPicture() {
