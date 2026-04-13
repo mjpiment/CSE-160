@@ -51,19 +51,23 @@
       />
 
 
-      <input 
-        type="button" 
-        id="draw_picture" 
-        value="Draw Picture" 
+      <input
+        type="button"
+        id="draw_picture"
+        value="Draw Picture"
       />
-
+      <input
+        type="button"
+        id="make_brush"
+        value="Make Your Own Brush"
+      />
 
       <p>
     </div>
     
     <!-- Div for the RGB Sliders-->
     <div>
-      <div>Shape Color:</div>
+      <div>Shape Color: <span id="color_preview" style="display:inline-block;width:32px;height:16px;border:1px solid #aaa;background:rgb(255,255,255);vertical-align:middle;"></span></div>
       
       <label for="red">Red:</label>
       <input 
@@ -120,12 +124,28 @@
       />
     </div>
 
+    <!-- Brush Designer (hidden until Make Your Own Brush is clicked) -->
+    <div id="brush_section" style="display:none;">
+      <h3>Brush Designer</h3>
+      <p>Use the shape, color, and size controls above to place elements. Click or drag here to build your brush, then press <b>Use as Brush</b> to paint with it on the main canvas.</p>
+      <canvas id="brush_canvas" width="200" height="200"></canvas>
+      <br>
+      <input type="button" id="clear_brush" value="Clear Brush" />
+      <input type="button" id="use_brush" value="Use as Brush" />
+    </div>
+
+    <div>
+      <p><b>Original Design Sketch:</b></p>
+      <img src="IMG_0077.jpeg" alt="Original design sketch" width="300" />
+    </div>
+
     <script src="../lib/webgl-utils.js"></script>
     <script src="../lib/webgl-debug.js"></script>
     <script src="../lib/cuon-utils.js"></script>
     <script src="Point.js"></script>
     <script src="Triangle.js"></script>
     <script src="Circle.js"></script>
+    <script src="CustomBrush.js"></script>
     <script src="ColoredPoints.js"></script>
     <script src="Picture.js"></script>
 

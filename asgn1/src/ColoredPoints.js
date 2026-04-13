@@ -77,6 +77,7 @@ function connectVariablesToGLSL(){
 const SQUARE = 0;
 const TRIANGLE = 1;
 const CIRCLE = 2;
+const CUSTOM = 3;
 
 // Globals related to UI elements
 let g_selectedColor = [1.0, 1.0, 1.0, 1.0]
@@ -101,14 +102,34 @@ function addActionsforHtmlUI() {
   // Draw the Picture
   document.getElementById('draw_picture').onclick = function () { drawPicture(); };
 
+  // Make Your Own Brush — toggle the brush designer panel
+  document.getElementById('make_brush').onclick = function () {
+    var section = document.getElementById('brush_section');
+    var visible = section.style.display !== 'none';
+    section.style.display = visible ? 'none' : 'block';
+    if (!visible) setupBrushCanvas();
+  };
+
+  // Use as Brush — switch drawing mode to custom brush
+  document.getElementById('use_brush').onclick = function () {
+    g_selectedType = CUSTOM;
+    document.getElementById('brush_section').style.display = 'none';
+  };
+
+  // Clear Brush
+  document.getElementById('clear_brush').onclick = function () {
+    g_brushElements = [];
+    renderBrushCanvas();
+  };
+
   // Red Slider
-  document.getElementById('red').addEventListener('input', function() { g_selectedColor[0] = this.value / 100; });
+  document.getElementById('red').addEventListener('input', function() { g_selectedColor[0] = this.value / 100; updateColorPreview(); });
 
   // Green Slider
-  document.getElementById('green').addEventListener('input', function() { g_selectedColor[1] = this.value / 100; });
+  document.getElementById('green').addEventListener('input', function() { g_selectedColor[1] = this.value / 100; updateColorPreview(); });
 
   // Blue Slider
-  document.getElementById('blue').addEventListener('input', function() { g_selectedColor[2] = this.value / 100; });
+  document.getElementById('blue').addEventListener('input', function() { g_selectedColor[2] = this.value / 100; updateColorPreview(); });
 
   // Size Slider
   document.getElementById('shape_size').addEventListener('input', function() { g_selectedSize = this.value; });
@@ -140,7 +161,14 @@ function main() {
   // Clear <canvas>
   gl.clear(gl.COLOR_BUFFER_BIT);
 
+  updateColorPreview();
+}
 
+function updateColorPreview() {
+  var r = Math.floor(g_selectedColor[0] * 255);
+  var g = Math.floor(g_selectedColor[1] * 255);
+  var b = Math.floor(g_selectedColor[2] * 255);
+  document.getElementById('color_preview').style.backgroundColor = 'rgb(' + r + ',' + g + ',' + b + ')';
 }
 
 function convertCoords(ev){
@@ -203,6 +231,8 @@ function click(ev) {
   } else if (g_selectedType == CIRCLE) {
     point = new Circle();
     point.segments = g_selectedSegments;
+  } else if (g_selectedType == CUSTOM) {
+    point = new CustomBrushShape();
   }
   point.position = [x, y];
   point.color = g_selectedColor.slice();
