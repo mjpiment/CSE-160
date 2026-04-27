@@ -1053,6 +1053,398 @@ var g_flyCamVel = [0, 0, 0];   // camera velocity (spring camera)
 var g_flyCamTarget = [0, 0, 0]; // smoothed look-at target
 var g_flyCamTargetVel = [0, 0, 0];
 
+// ============================================================
+// FLY MODE — Procedural infinite world (chunk system)
+// ============================================================
+var FLY_WORLD_SEED = 1337;
+var FLY_CHUNK_SIZE = 80.0;      // world units per chunk (x/z)
+var FLY_CHUNK_RADIUS = 3;       // active chunk radius around player
+var FLY_CHUNK_EVICT_RADIUS = 5; // eviction radius (must be >= radius)
+var FLY_CHUNK_GEN_BUDGET = 2;   // max chunks generated per tick
+
+var g_flyChunks = new Map();    // key -> chunk
+var g_flyChunkGenQueue = [];    // keys to generate (ordered)
+var g_flyChunkQueued = new Set();
+var g_flyCurrentChunk = [0, 0]; // [cx, cz]
+
+function flyChunkKey(cx, cz) { return cx + ',' + cz; }
+
+function flyHash2i(x, y, seed) {
+  // small integer hash to seed PRNGs per chunk
+  var h = seed | 0;
+  h ^= (x | 0) * 374761393;
+  h = (h << 13) | (h >>> 19);
+  h ^= (y | 0) * 668265263;
+  h = (h << 15) | (h >>> 17);
+  h = Math.imul(h, 1274126177);
+  return h | 0;
+}
+
+function flyMulberry32(seed) {
+  var t = seed | 0;
+  return function() {
+    t |= 0;
+    t = (t + 0x6D2B79F5) | 0;
+    var r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function flyWorldToChunkCoord(v) {
+  return Math.floor(v / FLY_CHUNK_SIZE);
+}
+
+function flyMakeChunk(cx, cz) {
+  var seed = flyHash2i(cx, cz, FLY_WORLD_SEED);
+  var rand = flyMulberry32(seed);
+
+  var baseX = cx * FLY_CHUNK_SIZE;
+  var baseZ = cz * FLY_CHUNK_SIZE;
+
+  // Density is intentionally low; perf/LOD can tune this later.
+  var treeCount = 8 + Math.floor(rand() * 10);
+  var grassCount = 18 + Math.floor(rand() * 20);
+  var mtnCount = 2 + Math.floor(rand() * 3);
+
+  var trees = [];
+  for (var i = 0; i < treeCount; i++) {
+    trees.push({
+      x: baseX + (rand() * FLY_CHUNK_SIZE),
+      z: baseZ + (rand() * FLY_CHUNK_SIZE),
+      tiers: 2 + Math.floor(rand() * 3),
+      hScale: 0.7 + rand() * 0.9,
+      rScale: 0.6 + rand() * 0.7
+    });
+  }
+
+  var grass = [];
+  for (var g = 0; g < grassCount; g++) {
+    grass.push({
+      x: baseX + (rand() * FLY_CHUNK_SIZE),
+      z: baseZ + (rand() * FLY_CHUNK_SIZE),
+      scale: 0.5 + rand() * 1.0,
+      angle: rand() * 360
+    });
+  }
+
+  var mountains = [];
+  for (var m = 0; m < mtnCount; m++) {
+    // keep mountains toward the edges of the chunk so the center is more flyable
+    var edge = rand() < 0.5;
+    var px = edge ? (rand() < 0.5 ? 0.05 : 0.95) : rand();
+    var pz = edge ? rand() : (rand() < 0.5 ? 0.05 : 0.95);
+    mountains.push({
+      x: baseX + px * FLY_CHUNK_SIZE,
+      z: baseZ + pz * FLY_CHUNK_SIZE,
+      baseSize: 6 + rand() * 10,
+      height: 12 + rand() * 22,
+      colorIndex: Math.floor(rand() * 3) // pick from existing mountain palette
+    });
+  }
+
+  return {
+    cx: cx,
+    cz: cz,
+    baseX: baseX,
+    baseZ: baseZ,
+    seed: seed,
+    trees: trees,
+    grass: grass,
+    mountains: mountains,
+    lastTouchedSec: g_seconds
+  };
+}
+
+function flyQueueChunk(cx, cz) {
+  var key = flyChunkKey(cx, cz);
+  if (g_flyChunks.has(key)) return;
+  if (g_flyChunkQueued.has(key)) return;
+  g_flyChunkQueued.add(key);
+  g_flyChunkGenQueue.push(key);
+}
+
+function flyEnsureChunksAroundPlayer() {
+  var pcx = flyWorldToChunkCoord(g_flyPos[0]);
+  var pcz = flyWorldToChunkCoord(g_flyPos[2]);
+  g_flyCurrentChunk[0] = pcx;
+  g_flyCurrentChunk[1] = pcz;
+
+  // queue missing chunks within radius (near-first rings)
+  for (var r = 0; r <= FLY_CHUNK_RADIUS; r++) {
+    for (var dz = -r; dz <= r; dz++) {
+      for (var dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+        flyQueueChunk(pcx + dx, pcz + dz);
+      }
+    }
+  }
+
+  // generate up to budget
+  var made = 0;
+  while (made < FLY_CHUNK_GEN_BUDGET && g_flyChunkGenQueue.length > 0) {
+    var key = g_flyChunkGenQueue.shift();
+    if (g_flyChunks.has(key)) continue;
+    g_flyChunkQueued.delete(key);
+    var parts = key.split(',');
+    var cx = parseInt(parts[0], 10);
+    var cz = parseInt(parts[1], 10);
+    g_flyChunks.set(key, flyMakeChunk(cx, cz));
+    made++;
+  }
+
+  // evict far chunks
+  g_flyChunks.forEach(function(chunk, key) {
+    var dx = chunk.cx - pcx;
+    var dz = chunk.cz - pcz;
+    if (Math.abs(dx) > FLY_CHUNK_EVICT_RADIUS || Math.abs(dz) > FLY_CHUNK_EVICT_RADIUS) {
+      g_flyChunks.delete(key);
+    } else {
+      chunk.lastTouchedSec = g_seconds;
+    }
+  });
+}
+
+function drawFlyChunkGround(chunk) {
+  // Simple repeating ground tile per chunk (infinite world).
+  var floor = new Matrix4();
+  floor.translate(chunk.baseX, GROUND_Y, chunk.baseZ);
+  floor.scale(FLY_CHUNK_SIZE, 0.5, FLY_CHUNK_SIZE);
+  drawCube(floor, VALLEY_GREEN);
+
+  var dirt = new Matrix4();
+  dirt.translate(chunk.baseX, GROUND_Y - 0.5, chunk.baseZ);
+  dirt.scale(FLY_CHUNK_SIZE, 0.5, FLY_CHUNK_SIZE);
+  drawCube(dirt, VALLEY_BROWN);
+}
+
+function drawFlyChunkProps(chunk) {
+  var pcx = g_flyCurrentChunk[0];
+  var pcz = g_flyCurrentChunk[1];
+  var dist = Math.max(Math.abs(chunk.cx - pcx), Math.abs(chunk.cz - pcz));
+  var drawTrees = dist <= 2;
+  var drawGrass = dist <= 1;
+
+  // Mountains
+  for (var i = 0; i < chunk.mountains.length; i++) {
+    var m = chunk.mountains[i];
+    var mtn = new Matrix4();
+    mtn.translate(m.x, SURFACE_Y, m.z);
+    var c = (m.colorIndex === 0) ? MTN_GRAY : (m.colorIndex === 1) ? MTN_DARK : MTN_BROWN;
+    drawPyramid(mtn, c, m.baseSize, m.height);
+
+    // Snow cap
+    var snow = new Matrix4();
+    snow.translate(m.x, SURFACE_Y + (m.height) * 0.6, m.z);
+    drawPyramid(snow, SNOW_WHITE, m.baseSize * 0.35, m.height * 0.45);
+  }
+
+  // Trees
+  if (drawTrees) {
+  for (var t = 0; t < chunk.trees.length; t++) {
+    // simple far-LOD: skip some trees in distance 2 chunks
+    if (dist === 2 && (t % 2) === 1) continue;
+    var tp = chunk.trees[t];
+    var trunkH = 6.0 * tp.hScale;
+    var trunkR = 0.55 * tp.rScale;
+
+    var trunk = new Matrix4();
+    trunk.translate(tp.x, SURFACE_Y + trunkH / 2.0, tp.z);
+    drawCylinder(trunk, TREE_TRUNK, trunkR, trunkH, 6);
+
+    var numTiers = tp.tiers;
+    var yOffset = SURFACE_Y + trunkH * 0.8;
+    for (var k = 0; k < numTiers; k++) {
+      var tierFactor = 1.0 - (k / numTiers) * 0.4;
+      var coneR = 3.2 * tp.rScale * tierFactor;
+      var coneH = 6.0 * tp.hScale * tierFactor;
+
+      var canopy = new Matrix4();
+      canopy.translate(tp.x, yOffset, tp.z);
+      drawCone(canopy, TREE_GREEN, coneR, coneH, 8);
+      yOffset += coneH * 0.45;
+    }
+  }
+  }
+
+  // Grass
+  if (drawGrass) {
+  var grassColor = [0.15, 0.40, 0.12, 1.0];
+  for (var g = 0; g < chunk.grass.length; g++) {
+    // light subsampling for performance
+    if ((g % 2) === 1) continue;
+    var gp = chunk.grass[g];
+    for (var b = 0; b < 3; b++) {
+      var grass = new Matrix4();
+      grass.translate(gp.x, SURFACE_Y, gp.z);
+      grass.rotate(gp.angle + b * 60.0, 0, 1, 0);
+      drawPyramid(grass, grassColor, 1.8 * gp.scale, 3.4 * gp.scale);
+    }
+  }
+  }
+}
+
+function drawFlyEnvironment() {
+  // Draw only chunks in a render radius (use chunk radius for now).
+  var pcx = g_flyCurrentChunk[0];
+  var pcz = g_flyCurrentChunk[1];
+  g_flyChunks.forEach(function(chunk) {
+    var dx = chunk.cx - pcx;
+    var dz = chunk.cz - pcz;
+    if (Math.abs(dx) > FLY_CHUNK_RADIUS || Math.abs(dz) > FLY_CHUNK_RADIUS) return;
+    drawFlyChunkGround(chunk);
+    drawFlyChunkProps(chunk);
+  });
+}
+
+// ============================================================
+// FLY MODE — Mission/waypoint game loop
+// ============================================================
+var FLY_MISSION_ENABLED = true;
+var FLY_WAYPOINT_RADIUS = 8.0;
+var FLY_WAYPOINT_MIN_DIST = 140.0;
+var FLY_WAYPOINT_MAX_DIST = 220.0;
+var FLY_WAYPOINT_MIN_Y = 10.0;
+var FLY_WAYPOINT_MAX_Y = 55.0;
+var FLY_WAYPOINT_TIME_LIMIT = 35.0; // seconds per waypoint
+var FLY_LOW_ALT_GRACE = 2.0;        // seconds allowed too low
+
+var g_flyMission = null; // {active, score, index, timeLeft, waypointPos:[x,y,z], failReason}
+var g_flyMissionSeed = 9001;
+var g_flyLowAltTime = 0;
+
+function flySetMissionFailOverlay(visible, reason) {
+  var overlay = document.getElementById('missionFailOverlay');
+  if (!overlay) return;
+  if (visible) {
+    overlay.classList.add('visible');
+    var r = document.getElementById('missionFailReason');
+    if (r) r.textContent = reason || 'Failed';
+    document.exitPointerLock();
+  } else {
+    overlay.classList.remove('visible');
+  }
+}
+
+function flyResetMission() {
+  g_flyMission = {
+    active: true,
+    score: 0,
+    index: 0,
+    timeLeft: FLY_WAYPOINT_TIME_LIMIT,
+    waypointPos: [g_flyPos[0], g_flyPos[1], g_flyPos[2]],
+    failReason: ''
+  };
+  g_flyMissionSeed = flyHash2i(0, 0, FLY_WORLD_SEED ^ 0x9e3779b9);
+  g_flyLowAltTime = 0;
+  flySetMissionFailOverlay(false, '');
+  flySpawnNextWaypoint();
+}
+
+function flySpawnNextWaypoint() {
+  if (!g_flyMission) return;
+  g_flyMission.index += 1;
+  g_flyMission.timeLeft = FLY_WAYPOINT_TIME_LIMIT;
+
+  var pcx = g_flyCurrentChunk[0];
+  var pcz = g_flyCurrentChunk[1];
+  g_flyMissionSeed = (g_flyMissionSeed + 1) | 0;
+  var seed = flyHash2i(pcx, pcz, g_flyMissionSeed);
+  var rand = flyMulberry32(seed);
+
+  var dist = FLY_WAYPOINT_MIN_DIST + rand() * (FLY_WAYPOINT_MAX_DIST - FLY_WAYPOINT_MIN_DIST);
+  var ang = rand() * Math.PI * 2.0;
+  var dx = Math.cos(ang) * dist;
+  var dz = Math.sin(ang) * dist;
+  var y = FLY_WAYPOINT_MIN_Y + rand() * (FLY_WAYPOINT_MAX_Y - FLY_WAYPOINT_MIN_Y);
+
+  g_flyMission.waypointPos = [g_flyPos[0] + dx, y, g_flyPos[2] + dz];
+}
+
+function flyFailMission(reason) {
+  if (!g_flyMission) return;
+  g_flyMission.active = false;
+  g_flyMission.failReason = reason || 'Failed';
+  flySetMissionFailOverlay(true, g_flyMission.failReason);
+}
+
+function flyUpdateMission(dt) {
+  if (!FLY_MISSION_ENABLED || !g_flyMission) return;
+  if (!g_flyMission.active) return;
+
+  g_flyMission.timeLeft -= dt;
+  if (g_flyMission.timeLeft <= 0) {
+    flyFailMission('Time up');
+    return;
+  }
+
+  // low altitude fail (encourages staying airborne)
+  if (g_flyPos[1] <= FLY_GROUND_Y + 0.4) {
+    g_flyLowAltTime += dt;
+    if (g_flyLowAltTime > FLY_LOW_ALT_GRACE) {
+      flyFailMission('Too low');
+      return;
+    }
+  } else {
+    g_flyLowAltTime = 0;
+  }
+
+  // waypoint completion
+  var wp = g_flyMission.waypointPos;
+  var dx = g_flyPos[0] - wp[0];
+  var dy = g_flyPos[1] - wp[1];
+  var dz = g_flyPos[2] - wp[2];
+  var d2 = dx*dx + dy*dy + dz*dz;
+  if (d2 <= FLY_WAYPOINT_RADIUS * FLY_WAYPOINT_RADIUS) {
+    // score: base + time bonus
+    var bonus = Math.max(0, Math.floor(g_flyMission.timeLeft));
+    g_flyMission.score += 100 + bonus * 5;
+    flySpawnNextWaypoint();
+  }
+}
+
+function drawFlyWaypoint() {
+  if (!FLY_MISSION_ENABLED || !g_flyMission) return;
+  var wp = g_flyMission.waypointPos;
+
+  // If failed, keep showing the last waypoint but dim it
+  var ringColor = g_flyMission.active ? [0.95, 0.85, 0.25, 1.0] : [0.5, 0.5, 0.5, 0.8];
+  var r = FLY_WAYPOINT_RADIUS;
+  var segments = 18;
+
+  for (var i = 0; i < segments; i++) {
+    var a = (i / segments) * Math.PI * 2.0;
+    var x = wp[0] + Math.cos(a) * r;
+    var z = wp[2] + Math.sin(a) * r;
+
+    var m = new Matrix4();
+    m.translate(x, wp[1], z);
+    // little blocks around a circle
+    m.scale(1.1, 1.1, 1.1);
+    drawCube(m, ringColor);
+  }
+}
+
+function updateFlyHUD() {
+  var hud = document.getElementById('flyHudMission');
+  if (!hud) return;
+  if (!FLY_MISSION_ENABLED || !g_flyMission) {
+    hud.textContent = '';
+    return;
+  }
+  var wp = g_flyMission.waypointPos;
+  var dx = g_flyPos[0] - wp[0];
+  var dy = g_flyPos[1] - wp[1];
+  var dz = g_flyPos[2] - wp[2];
+  var dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+  var time = Math.max(0, g_flyMission.timeLeft);
+  hud.textContent =
+    'Score: ' + g_flyMission.score +
+    ' | WP: ' + g_flyMission.index +
+    ' | Time: ' + time.toFixed(1) + 's' +
+    ' | Dist: ' + Math.floor(dist);
+}
+
 function enterFlyMode() {
   // Show the start screen first — don't actually start flying yet
   document.getElementById('flyStartOverlay').classList.add('visible');
@@ -1083,6 +1475,18 @@ function startFlying() {
   g_flyYawRate = 0;
   g_flyYawVel = 0;
   g_flyPitchVel = 0;
+
+  // Reset procedural world streaming
+  g_flyChunks = new Map();
+  g_flyChunkGenQueue = [];
+  g_flyChunkQueued = new Set();
+  flyEnsureChunksAroundPlayer();
+
+  if (FLY_MISSION_ENABLED) {
+    flyResetMission();
+  } else {
+    g_flyMission = null;
+  }
 
   // Move canvas out of the container to body so hiding container doesn't hide it
   document.body.appendChild(canvas);
@@ -1155,6 +1559,9 @@ function flyModeTick() {
   g_flyLastTime = now;
   g_flyDt = dt;
   g_flyWingTime += dt;
+
+  // Stream/generate procedural chunks around player
+  flyEnsureChunksAroundPlayer();
 
   // --- Turning (normal, direct) ---
   var turnInput = 0;
@@ -1250,6 +1657,10 @@ function flyModeTick() {
     g_flyVelY = Math.max(g_flyVelY, 2.0); // bounce up slightly
     g_flyPitch = Math.max(g_flyPitch, 0);
   }
+
+  // Mission/waypoint update (after physics integration)
+  flyUpdateMission(dt);
+  updateFlyHUD();
 
   renderFlyScene();
 }
@@ -1374,9 +1785,12 @@ function renderFlyScene() {
   var identity = new Matrix4();
   gl.uniformMatrix4fv(u_GlobalRotateMatrix, false, identity.elements);
 
-  // Draw environment
-  drawEnvironment();
+  // Draw procedural fly environment (chunked infinite world)
+  drawFlyEnvironment();
   gl.uniform1f(u_LightEnabled, 1.0);
+
+  // Draw mission waypoint marker (ring)
+  drawFlyWaypoint();
 
   // --- Draw the eagle at its world position ---
   var eagleMat = new Matrix4();
@@ -1450,12 +1864,22 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('pauseContinueBtn').onclick = function() { toggleFlyPause(); };
   document.getElementById('pauseLeaveBtn').onclick = function() { exitFlyMode(); };
 
+  var restartBtn = document.getElementById('missionRestartBtn');
+  if (restartBtn) restartBtn.onclick = function() { flyResetMission(); };
+  var leaveBtn = document.getElementById('missionLeaveBtn');
+  if (leaveBtn) leaveBtn.onclick = function() { exitFlyMode(); };
+
   document.addEventListener('keydown', function(e) {
     if (g_flyMode) {
       var key = e.key.toLowerCase();
       if (key === 'escape') {
         e.preventDefault();
         toggleFlyPause();
+        return;
+      }
+      if (key === 'r') {
+        e.preventDefault();
+        if (FLY_MISSION_ENABLED) flyResetMission();
         return;
       }
       if (!g_flyPaused) {
