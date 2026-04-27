@@ -4,55 +4,276 @@
     <meta charset="utf-8" />
     <title>Blocky Eagle</title>
     <style>
-      body { font-family: monospace; background: #1a1a2e; color: #eee; margin: 16px; }
-      canvas { display: block; border: 2px solid #444; }
-      label { display: inline-block; width: 160px; }
-      input[type=range] { width: 200px; vertical-align: middle; }
-      .row { margin: 4px 0; }
-      button { margin-right: 6px; padding: 4px 10px; }
+      @import url('https://fonts.googleapis.com/css2?family=Rye&family=Archivo+Black&display=swap');
+
+      * { box-sizing: border-box; }
+
+      body {
+        font-family: 'Archivo Black', sans-serif;
+        background: linear-gradient(180deg, #1b0e05 0%, #2e1a0a 40%, #3d2211 100%);
+        color: #f0e6d3;
+        margin: 0;
+        padding: 30px 20px;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      }
+
+      .container {
+        max-width: 900px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: rgba(30, 16, 6, 0.6);
+        border: 3px solid #8b1a1a;
+        border-radius: 8px;
+        padding: 28px 32px;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,168,76,0.15);
+      }
+
+      h1 {
+        font-family: 'Rye', cursive;
+        color: #c9a84c;
+        text-shadow: 2px 2px 0px #2e1a0a, 0 0 10px rgba(201, 168, 76, 0.3);
+        margin: 0 0 16px 0;
+        font-size: 28px;
+        text-align: center;
+        letter-spacing: 2px;
+      }
+
+      canvas {
+        display: block;
+        border: 3px solid #8b1a1a;
+        box-shadow: 0 4px 20px rgba(139, 26, 26, 0.4);
+        border-radius: 4px;
+        max-width: 100%;
+      }
+
+      .controls {
+        width: 100%;
+        margin-top: 18px;
+      }
+
+      .section-label {
+        font-family: 'Rye', cursive;
+        color: #c9a84c;
+        font-size: 13px;
+        margin: 14px 0 6px 0;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(201, 168, 76, 0.2);
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 8px 0;
+        justify-content: center;
+      }
+
+      .slider-row {
+        display: flex;
+        align-items: center;
+        margin: 5px 0;
+      }
+
+      .slider-row label {
+        width: 140px;
+        flex-shrink: 0;
+        color: #c9a84c;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .slider-row input[type=range] {
+        flex: 1;
+        max-width: 240px;
+        accent-color: #8b1a1a;
+      }
+
+      button {
+        padding: 7px 16px;
+        background: linear-gradient(180deg, #8b1a1a 0%, #5c1010 100%);
+        color: #f0e6d3;
+        border: 2px solid #c9a84c;
+        border-radius: 3px;
+        font-family: 'Archivo Black', sans-serif;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      button:hover {
+        background: linear-gradient(180deg, #a52020 0%, #8b1a1a 100%);
+        box-shadow: 0 0 10px rgba(201, 168, 76, 0.4);
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+
+      /* Fly mode start screen */
+      #flyStartOverlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(180deg, #1b0e05 0%, #2e1a0a 40%, #3d2211 100%);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+      #flyStartOverlay.visible { display: flex; }
+      #flyStartOverlay h2 {
+        font-family: 'Rye', cursive;
+        color: #c9a84c;
+        font-size: 42px;
+        margin-bottom: 8px;
+        text-shadow: 2px 2px 0px #2e1a0a, 0 0 20px rgba(201, 168, 76, 0.4);
+      }
+      #flyStartOverlay button {
+        display: block;
+        width: 200px;
+        margin: 8px auto;
+        padding: 12px 20px;
+        font-size: 14px;
+      }
+
+      /* Pause menu overlay */
+      #pauseOverlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.75);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+      #pauseOverlay.visible { display: flex; }
+      #pauseOverlay h2 {
+        font-family: 'Rye', cursive;
+        color: #c9a84c;
+        font-size: 36px;
+        margin-bottom: 30px;
+        text-shadow: 2px 2px 0px #2e1a0a;
+      }
+      #pauseOverlay button {
+        display: block;
+        width: 200px;
+        margin: 8px auto;
+        padding: 12px 20px;
+        font-size: 14px;
+      }
+      /* Fly mode HUD */
+      #flyHUD {
+        display: none;
+        position: fixed;
+        bottom: 20px; left: 50%;
+        transform: translateX(-50%);
+        color: #c9a84c;
+        font-family: 'Archivo Black', sans-serif;
+        font-size: 12px;
+        text-align: center;
+        z-index: 999;
+        background: rgba(0,0,0,0.5);
+        padding: 8px 16px;
+        border-radius: 4px;
+        pointer-events: none;
+      }
+
+      #numdot {
+        color: #c9a84c;
+        font-size: 14px;
+        font-family: monospace;
+        text-align: center;
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(201, 168, 76, 0.15);
+        width: 100%;
+      }
     </style>
   </head>
 
   <body onload="main()">
-    <canvas id="webgl" width="600" height="500">
-      Please use a browser that supports "canvas"
-    </canvas>
+    <div class="container">
+      <h1>Blocky Eagle</h1>
+      <p style="margin:-10px 0 12px 0; color:#c9a84c; font-size:13px; letter-spacing:1px; font-family:'Rye', cursive;">by Michael Pimentel</p>
 
-    <div class="row" style="margin-top:10px">
-      <button id="animationOnButton">Animation ON</button>
-      <button id="animationOffButton">Animation OFF</button>
-      <button id="pokeButton">Poke! (or Shift+Click canvas)</button>
+      <canvas id="webgl" width="650" height="500">
+        Please use a browser that supports "canvas"
+      </canvas>
+
+      <div class="controls">
+        <div class="section-label">Actions</div>
+        <div class="btn-row">
+          <button id="animationOnButton">Animation ON</button>
+          <button id="animationOffButton">Animation OFF</button>
+          <button id="pokeButton">Poke! (Shift+Click)</button>
+          <button id="flyModeButton">Fly Mode</button>
+        </div>
+
+        <div class="section-label">Canvas Size</div>
+        <div class="btn-row">
+          <button onclick="resizeCanvas(400)">400</button>
+          <button onclick="resizeCanvas(600)">600</button>
+          <button onclick="resizeCanvas(800)">800</button>
+          <button onclick="resizeCanvas('full')">Fullscreen</button>
+        </div>
+
+        <div class="section-label">Camera</div>
+        <div class="slider-row"><label>X Tilt</label>
+          <input type="range" min="-90" max="90"  value="15"  id="angleXSlide"></div>
+        <div class="slider-row"><label>Y Spin</label>
+          <input type="range" min="0"   max="360" value="180" id="angleYSlide"></div>
+        <div class="slider-row"><label>Zoom</label>
+          <input type="range" min="30" max="300" value="220" id="zoomSlide"></div>
+
+        <div class="section-label">Wings</div>
+        <div class="slider-row"><label>Shoulder</label>
+          <input type="range" min="-70" max="70"  value="0"   id="wingSlide"></div>
+        <div class="slider-row"><label>Elbow</label>
+          <input type="range" min="-60" max="60"  value="0"   id="wingMidSlide"></div>
+        <div class="slider-row"><label>Wrist</label>
+          <input type="range" min="-50" max="50"  value="0"   id="wingTipSlide"></div>
+
+        <div class="section-label">Body</div>
+        <div class="slider-row"><label>Head Turn</label>
+          <input type="range" min="-60" max="60"  value="0"   id="headTurnSlide"></div>
+        <div class="slider-row"><label>Leg Swing</label>
+          <input type="range" min="-40" max="40"  value="0"   id="legSwingSlide"></div>
+        <div class="slider-row"><label>Knee Bend</label>
+          <input type="range" min="0"   max="90"  value="0"   id="kneeBendSlide"></div>
+      </div>
+
+      <p id="numdot">Performance: Loading...</p>
     </div>
 
-    <div class="row">
-      Canvas size:
-      <button onclick="resizeCanvas(400)">400</button>
-      <button onclick="resizeCanvas(600)">600</button>
-      <button onclick="resizeCanvas(800)">800</button>
-      <button onclick="resizeCanvas('full')">Fullscreen</button>
+    <!-- Fly Mode Start Screen -->
+    <div id="flyStartOverlay">
+      <h2>Eagle Flight</h2>
+      <p style="color:#f0e6d3; font-size:13px; margin-bottom:24px; letter-spacing:1px;">Explore the valley as the eagle</p>
+      <button id="flyStartBtn">Start</button>
+      <button id="flyBackBtn">Back</button>
+      <p style="color:#888; font-size:11px; margin-top:20px;">WASD - Move | Mouse - Look | Space/Shift - Up/Down | ESC - Pause</p>
     </div>
 
-    <div class="row"><label>Camera X tilt</label>
-      <input type="range" min="-90" max="90"  value="15"  id="angleXSlide"></div>
-    <div class="row"><label>Camera Y spin</label>
-      <input type="range" min="0"   max="360" value="30"  id="angleYSlide"></div>
-
-    <div class="row"><label>Wing shoulder</label>
-      <input type="range" min="-70" max="70"  value="0"   id="wingSlide"></div>
-    <div class="row"><label>Wing elbow</label>
-      <input type="range" min="-60" max="60"  value="0"   id="wingMidSlide"></div>
-    <div class="row"><label>Wing wrist</label>
-      <input type="range" min="-50" max="50"  value="0"   id="wingTipSlide"></div>
-
-    <div class="row"><label>Head turn</label>
-      <input type="range" min="-60" max="60"  value="0"   id="headTurnSlide"></div>
-
-    <div class="row"><label>Leg swing</label>
-      <input type="range" min="-40" max="40"  value="0"   id="legSwingSlide"></div>
-    <div class="row"><label>Knee bend</label>
-      <input type="range" min="0"   max="90"  value="0"   id="kneeBendSlide"></div>
-
-    <p id="numdot">Performance: Loading...</p>
+    <!-- Fly Mode Pause Menu -->
+    <div id="pauseOverlay">
+      <h2>Paused</h2>
+      <button id="pauseContinueBtn">Continue</button>
+      <button id="pauseLeaveBtn">Leave</button>
+    </div>
+    <div id="flyHUD">WASD - Move &nbsp; | &nbsp; Mouse - Look &nbsp; | &nbsp; Space/Shift - Up/Down &nbsp; | &nbsp; ESC - Pause</div>
 
     <script src="../lib/webgl-utils.js"></script>
     <script src="../lib/webgl-debug.js"></script>

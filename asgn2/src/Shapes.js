@@ -257,3 +257,102 @@ function drawTorus(M, color, R, r, segs, rings) {
   _setUniforms(M, color);
   _drawVertices(verts);
 }
+
+// ============================================================
+// FRUSTUM (truncated cone — cone with the top chopped off)
+//   rBottom : radius at base (y=0)          (default 0.5)
+//   rTop    : radius at top  (y=height)     (default 0.25)
+//   height  : total height                  (default 1.0)
+//   segs    : side segments                 (default 24)
+// Great for: beak, neck, legs, tapered body sections.
+// ============================================================
+function drawFrustum(M, color, rBottom, rTop, height, segs) {
+  rBottom = rBottom !== undefined ? rBottom : 0.5;
+  rTop    = rTop    !== undefined ? rTop    : 0.25;
+  height  = height  !== undefined ? height  : 1.0;
+  segs    = segs    !== undefined ? segs    : 24;
+
+  var verts = [];
+  var step  = (2 * Math.PI) / segs;
+
+  for (var i = 0; i < segs; i++) {
+    var a0 = i       * step;
+    var a1 = (i + 1) * step;
+
+    var bx0 = rBottom * Math.cos(a0), bz0 = rBottom * Math.sin(a0);
+    var bx1 = rBottom * Math.cos(a1), bz1 = rBottom * Math.sin(a1);
+    var tx0 = rTop    * Math.cos(a0), tz0 = rTop    * Math.sin(a0);
+    var tx1 = rTop    * Math.cos(a1), tz1 = rTop    * Math.sin(a1);
+
+    // Side quad (two triangles)
+    verts.push(bx0, 0, bz0,  bx1, 0, bz1,  tx1, height, tz1);
+    verts.push(bx0, 0, bz0,  tx1, height, tz1,  tx0, height, tz0);
+
+    // Bottom cap
+    verts.push(0, 0, 0,  bx1, 0, bz1,  bx0, 0, bz0);
+
+    // Top cap
+    verts.push(0, height, 0,  tx0, height, tz0,  tx1, height, tz1);
+  }
+
+  _setUniforms(M, color);
+  _drawVertices(verts);
+}
+
+// ============================================================
+// TRUNCATED PYRAMID (pyramid with the top chopped off)
+//   baseW, baseD : width & depth of bottom face (default 1.0)
+//   topW,  topD  : width & depth of top face    (default 0.5)
+//   height       : total height                  (default 1.0)
+// Base at y=0, top at y=height. Centered on X and Z.
+// Great for: head shape, torso tapering, blocky beak.
+// ============================================================
+function drawTruncatedPyramid(M, color, baseW, baseD, topW, topD, height) {
+  baseW  = baseW  !== undefined ? baseW  : 1.0;
+  baseD  = baseD  !== undefined ? baseD  : 1.0;
+  topW   = topW   !== undefined ? topW   : 0.5;
+  topD   = topD   !== undefined ? topD   : 0.5;
+  height = height !== undefined ? height : 1.0;
+
+  var bw = baseW / 2, bd = baseD / 2;
+  var tw = topW  / 2, td = topD  / 2;
+
+  // 8 corners: bottom 4, top 4
+  var b = [
+    [-bw, 0, -bd],  // 0: back-left
+    [ bw, 0, -bd],  // 1: back-right
+    [ bw, 0,  bd],  // 2: front-right
+    [-bw, 0,  bd],  // 3: front-left
+  ];
+  var t = [
+    [-tw, height, -td],  // 4: back-left
+    [ tw, height, -td],  // 5: back-right
+    [ tw, height,  td],  // 6: front-right
+    [-tw, height,  td],  // 7: front-left
+  ];
+
+  var verts = [];
+
+  function pushTri(a, c2, c3) {
+    verts.push(a[0],a[1],a[2], c2[0],c2[1],c2[2], c3[0],c3[1],c3[2]);
+  }
+
+  // 4 side faces (each is a quad = 2 triangles)
+  var sides = [[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
+  for (var i = 0; i < 4; i++) {
+    var s = sides[i];
+    pushTri(b[s[0]], b[s[1]], t[s[2]]);
+    pushTri(b[s[0]], t[s[2]], t[s[3]]);
+  }
+
+  // Bottom face
+  pushTri(b[0], b[2], b[1]);
+  pushTri(b[0], b[3], b[2]);
+
+  // Top face
+  pushTri(t[0], t[1], t[2]);
+  pushTri(t[0], t[2], t[3]);
+
+  _setUniforms(M, color);
+  _drawVertices(verts);
+}
