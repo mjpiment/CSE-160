@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>CSE 160 Asgn3 - World Explorer</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; width:100vw; height:100vh; }
+    #hud {
+      position:fixed; top:10px; left:10px;
+      color:#fff; font:14px monospace;
+      text-shadow:1px 1px 2px #000;
+      pointer-events:none; line-height:1.6;
+    }
+    #crosshair {
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      color:#fff; font:24px monospace;
+      pointer-events:none; user-select:none;
+      text-shadow:1px 1px 2px #000;
+    }
+    #click-to-play {
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      color:#fff; font:20px sans-serif;
+      background:rgba(0,0,0,0.6);
+      padding:20px 40px; border-radius:8px;
+      text-align:center; pointer-events:none;
+    }
+    #win {
+      display:none;
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.85);
+      color:gold; font:bold 48px sans-serif;
+      padding:40px 60px; border-radius:12px;
+      border:3px solid gold; text-align:center;
+    }
+    #win p { font-size:22px; margin-top:16px; color:#fff; }
+  </style>
+
+  <script id="vshader" type="x-shader/x-vertex">
+    attribute vec4 a_Position;
+    attribute vec2 a_UV;
+    uniform mat4 u_ModelMatrix;
+    uniform mat4 u_ViewMatrix;
+    uniform mat4 u_ProjectionMatrix;
+    varying vec2 v_UV;
+    void main() {
+      gl_Position = u_ProjectionMatrix * u_ViewMatrix * u_ModelMatrix * a_Position;
+      v_UV = a_UV;
+    }
+  </script>
+
+  <script id="fshader" type="x-shader/x-fragment">
+    precision mediump float;
+    varying vec2 v_UV;
+    uniform sampler2D u_Sampler0;
+    uniform sampler2D u_Sampler1;
+    uniform sampler2D u_Sampler2;
+    uniform sampler2D u_Sampler3;
+    uniform sampler2D u_Sampler4;
+    uniform sampler2D u_Sampler5;
+    uniform vec4 u_BaseColor;
+    uniform float u_texColorWeight;
+    uniform int u_whichTexture;
+    void main() {
+      if (u_whichTexture == -2) {
+        gl_FragColor = u_BaseColor;
+      } else if (u_whichTexture == -1) {
+        gl_FragColor = vec4(v_UV.x, v_UV.y, 1.0, 1.0);
+      } else {
+        vec4 tc;
+        if      (u_whichTexture == 0) tc = texture2D(u_Sampler0, v_UV);
+        else if (u_whichTexture == 1) tc = texture2D(u_Sampler1, v_UV);
+        else if (u_whichTexture == 2) tc = texture2D(u_Sampler2, v_UV);
+        else if (u_whichTexture == 3) tc = texture2D(u_Sampler3, v_UV);
+        else if (u_whichTexture == 4) tc = texture2D(u_Sampler4, v_UV);
+        else                          tc = texture2D(u_Sampler5, v_UV);
+        gl_FragColor = mix(u_BaseColor, tc, u_texColorWeight);
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="hud">
+    <div id="fps">FPS: --</div>
+    <div id="pos">Pos: --</div>
+    <div id="collected">Collected: 0 / 0</div>
+    <div style="margin-top:6px;font-size:12px;color:#aaa">
+      WASD=move  Q/E=pan  click=lock<br>
+      LClick=add block  F=remove block<br>
+      G=throw ball
+    </div>
+  </div>
+  <div id="crosshair">+</div>
+  <div id="click-to-play">Click to play</div>
+  <div id="win"><div>You Win!</div><p>All gold collected!</p></div>
+
+  <script src="lib/cuon-matrix.js"></script>
+  <script src="lib/cuon-utils.js"></script>
+  <script src="lib/webgl-utils.js"></script>
+  <script src="cube.js"></script>
+  <script src="camera.js"></script>
+  <script src="world.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
