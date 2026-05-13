@@ -292,7 +292,7 @@ function drawDog(now) {
   // Base transform: dog position + facing direction
   const base = new Matrix4();
   base.setTranslate(dogPos[0], 0, dogPos[2]);
-  base.rotate(dogFace - 90, 0, 1, 0); // -90 so "forward" of model faces along +X before rotation
+  base.rotate(-dogFace, 0, 1, 0);
 
   const W  = [0.95, 0.95, 0.95, 1]; // white body
   const WD = [0.80, 0.80, 0.80, 1]; // slightly darker for depth
@@ -312,9 +312,11 @@ function drawDog(now) {
   // Nose (black)
   solidPart(base, 0.86, 0.76 + bob, 0, 0.07, 0.07, 0.08, [0.1,0.1,0.1,1]);
 
-  // Eyes
-  solidPart(base, 0.56, 0.92 + bob,  0.12, 0.07, 0.07, 0.05, [0.15,0.08,0.0,1]);
-  solidPart(base, 0.56, 0.92 + bob, -0.12, 0.07, 0.07, 0.05, [0.15,0.08,0.0,1]);
+  // Eyes — white sclera + dark pupil, on front face of head
+  solidPart(base, 0.65, 0.90 + bob,  0.09, 0.06, 0.09, 0.09, [1.0, 1.0, 1.0, 1]);
+  solidPart(base, 0.65, 0.90 + bob, -0.09, 0.06, 0.09, 0.09, [1.0, 1.0, 1.0, 1]);
+  solidPart(base, 0.69, 0.90 + bob,  0.09, 0.04, 0.06, 0.06, [0.05,0.05,0.05,1]);
+  solidPart(base, 0.69, 0.90 + bob, -0.09, 0.04, 0.06, 0.06, [0.05,0.05,0.05,1]);
 
   // Ears
   const earM1 = new Matrix4(base);
@@ -331,15 +333,15 @@ function drawDog(now) {
 
   // Legs
   if (sitting) {
-    legPart(base,  0.28, 0.0 + bob,  0.15,  20, WD);
-    legPart(base,  0.28, 0.0 + bob, -0.15,  20, WD);
-    legPart(base, -0.28, 0.0 + bob,  0.15, -30, WD);
-    legPart(base, -0.28, 0.0 + bob, -0.15, -30, WD);
+    legPart(base,  0.28, 0.0 + bob,  0.15,  20, W);
+    legPart(base,  0.28, 0.0 + bob, -0.15,  20, W);
+    legPart(base, -0.28, 0.0 + bob,  0.15, -30, W);
+    legPart(base, -0.28, 0.0 + bob, -0.15, -30, W);
   } else {
-    legPart(base,  0.22, 0.0 + bob,  0.15,  legSwing, WD);
-    legPart(base,  0.22, 0.0 + bob, -0.15,  legSwing, WD);
-    legPart(base, -0.22, 0.0 + bob,  0.15, -legSwing, WD);
-    legPart(base, -0.22, 0.0 + bob, -0.15, -legSwing, WD);
+    legPart(base,  0.22, 0.0 + bob,  0.15,  legSwing, W);
+    legPart(base,  0.22, 0.0 + bob, -0.15,  legSwing, W);
+    legPart(base, -0.22, 0.0 + bob,  0.15, -legSwing, W);
+    legPart(base, -0.22, 0.0 + bob, -0.15, -legSwing, W);
   }
 
   // Tail
@@ -347,9 +349,9 @@ function drawDog(now) {
   const wagAmp   = running ? 40 : 20;
   const tailWag  = Math.sin(performance.now() * 0.001 * wagSpeed) * wagAmp;
   const tailM = new Matrix4(base);
-  tailM.translate(-0.42, 0.55 + bob, 0);
+  tailM.translate(-0.35, 0.45 + bob, 0);
   tailM.rotate(tailWag, 0, 0, 1);
-  tailM.translate(-0.18, 0, 0);
+  tailM.translate(-0.15, 0, 0);
   tailM.scale(0.30, 0.10, 0.10);
   drawPart(tailM, W, -2);
 }
@@ -360,7 +362,7 @@ function legPart(base, ox, oy, oz, swing, color) {
   m.rotate(swing, 0, 0, 1);
   m.translate(0, -0.18, 0);
   m.scale(0.13, 0.38, 0.13);
-  drawPart(m, color, TEX_FUR);
+  drawPart(m, color, -2);
 }
 
 function solidPart(base, ox, oy, oz, sx, sy, sz, color) {
