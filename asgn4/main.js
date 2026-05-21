@@ -152,11 +152,33 @@ function main() {
   setupControls();
   setupModeSelect();
 
+  document.getElementById('btn-lighting').addEventListener('click', () => {
+    g_lightingOn = !g_lightingOn;
+    document.getElementById('btn-lighting').textContent =
+      g_lightingOn ? 'Lighting: ON' : 'Lighting: OFF';
+  });
+
   document.getElementById('btn-normalviz').addEventListener('click', () => {
     normalVizOn = !normalVizOn;
     document.getElementById('btn-normalviz').textContent =
       normalVizOn ? 'Normal Viz: ON' : 'Normal Viz: OFF';
   });
+
+  function bindSlider(id, valId, decimals, setter) {
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(valId);
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      setter(v);
+      valEl.textContent = v.toFixed(decimals);
+    });
+  }
+
+  bindSlider('sl-lr', 'val-lr', 2, v => { g_lightColor[0] = v; });
+  bindSlider('sl-lg', 'val-lg', 2, v => { g_lightColor[1] = v; });
+  bindSlider('sl-lb', 'val-lb', 2, v => { g_lightColor[2] = v; });
+  bindSlider('sl-lx', 'val-lx', 1, v => { g_lightAnimate = false; g_lightPos[0] = v; });
+  bindSlider('sl-ly', 'val-ly', 1, v => { g_lightPos[1] = v; });
 
   window.addEventListener('resize', () => {
     canvas.width  = window.innerWidth;
@@ -553,12 +575,14 @@ function setupModeSelect() {
   document.getElementById('btn-assignment').addEventListener('click', () => {
     g_mode = 'assignment';
     document.getElementById('mode-select').style.display = 'none';
+    document.getElementById('controls').style.display = 'flex';
     canvas.requestPointerLock();
   });
   document.getElementById('btn-horror').addEventListener('click', () => {
     g_mode = 'horror';
     audio.init();  // must call inside user gesture
     document.getElementById('mode-select').style.display = 'none';
+    document.getElementById('controls').style.display = 'none';
     canvas.requestPointerLock();
   });
 }
