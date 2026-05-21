@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>CSE 160 Asgn4 - Lighting</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; }
+    canvas { display:block; width:100vw; height:100vh; }
+    #hud {
+      position:fixed; top:10px; left:10px;
+      color:#fff; font:14px monospace;
+      text-shadow:1px 1px 2px #000;
+      pointer-events:none; line-height:1.6;
+    }
+    #controls {
+      position:fixed; top:10px; right:10px;
+      display:flex; flex-direction:column; gap:6px;
+    }
+    #controls button {
+      padding:6px 14px; font:13px monospace;
+      background:rgba(0,0,0,0.65); color:#fff;
+      border:1px solid #666; border-radius:4px;
+      cursor:pointer;
+    }
+    #controls button:hover { background:rgba(60,60,60,0.85); }
+    .ctrl-panel {
+      background:rgba(0,0,0,0.65); border:1px solid #666; border-radius:4px;
+      padding:8px 10px; color:#fff; font:12px monospace;
+    }
+    .ctrl-panel label { display:block; margin-bottom:4px; cursor:pointer; }
+    .ctrl-panel input[type=range] { width:110px; vertical-align:middle; }
+    .ctrl-val { display:inline-block; width:36px; text-align:right; }
+    #crosshair {
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      color:#fff; font:24px monospace;
+      pointer-events:none; user-select:none;
+      text-shadow:1px 1px 2px #000;
+    }
+    #click-to-play {
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      color:#fff; font:20px sans-serif;
+      background:rgba(0,0,0,0.6);
+      padding:20px 40px; border-radius:8px;
+      text-align:center; pointer-events:none;
+    }
+    #win {
+      display:none;
+      position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.85);
+      color:gold; font:bold 48px sans-serif;
+      padding:40px 60px; border-radius:12px;
+      border:3px solid gold; text-align:center;
+    }
+    #win p { font-size:22px; margin-top:16px; color:#fff; }
+
+    /* ── Mode selection ── */
+    #mode-select {
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      background:#0a0a0a; z-index:300;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    }
+    #mode-select h1 { color:#ddd; font:bold 28px monospace; letter-spacing:6px; margin-bottom:4px; }
+    #mode-select p  { color:#555; font:14px monospace; margin-bottom:24px; }
+    .mode-btn {
+      padding:16px 52px; font:bold 16px monospace; border-radius:6px;
+      cursor:pointer; border:2px solid; transition:all 0.2s; width:280px;
+    }
+    #btn-assignment { background:rgba(20,60,140,0.25); color:#8af; border-color:#3366aa; }
+    #btn-assignment:hover { background:rgba(20,60,140,0.6); }
+    #btn-horror { background:rgba(70,0,0,0.25); color:#f77; border-color:#880000; margin-top:4px; }
+    #btn-horror:hover { background:rgba(120,0,0,0.6); box-shadow:0 0 24px rgba(200,0,0,0.5); }
+    .mode-desc { font:12px monospace; color:#555; margin-top:-10px; }
+
+    /* ── Horror intro overlay ── */
+    #intro-overlay {
+      display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+      background:#000; z-index:150;
+      flex-direction:column; align-items:center; justify-content:center;
+      opacity:0; transition:opacity 0.9s;
+    }
+    #intro-title {
+      color:#8b0000; font:bold 76px serif; letter-spacing:14px;
+      text-shadow:0 0 40px rgba(220,0,0,0.9), 0 0 90px rgba(150,0,0,0.5);
+      animation:flicker 4s infinite;
+    }
+    #intro-sub {
+      color:#777; font:italic 21px serif; letter-spacing:4px;
+      margin-top:26px; opacity:0; transition:opacity 1.2s;
+    }
+    @keyframes flicker {
+      0%,87%,91%,95%,100% { opacity:1; }
+      88%  { opacity:0.12; }
+      92%  { opacity:0.55; }
+    }
+
+    /* ── Red vignette (pulsing horror atmosphere) ── */
+    #vignette {
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      pointer-events:none; z-index:10;
+    }
+
+    /* ── Caught screen ── */
+    #caught {
+      display:none; position:fixed; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.93); color:#cc0000;
+      font:bold 64px serif; padding:40px 80px; border-radius:12px;
+      border:2px solid #8b0000; text-align:center; z-index:200;
+      text-shadow:0 0 30px rgba(220,0,0,0.9);
+      animation:pulse-border 1.2s infinite;
+    }
+    @keyframes pulse-border {
+      0%,100% { box-shadow:0 0 20px rgba(180,0,0,0.3); }
+      50%      { box-shadow:0 0 60px rgba(220,0,0,0.8); }
+    }
+  </style>
+
+  <!-- ===================== VERTEX SHADER ===================== -->
+  <script id="vshader" type="x-shader/x-vertex">
+    attribute vec4 a_Position;
+    attribute vec2 a_UV;
+    attribute vec3 a_Normal;
+    uniform mat4 u_ModelMatrix;
+    uniform mat4 u_ViewMatrix;
+    uniform mat4 u_ProjectionMatrix;
+    uniform mat4 u_NormalMatrix;   // inverse-transpose of u_ModelMatrix, computed in JS
+    uniform vec3 u_LightPos;
+    varying vec2 v_UV;
+    varying vec3 v_Normal;    // world-space normal  → fragment shader for lighting + Normal Viz
+    varying vec3 v_WorldPos;  // world-space position → fragment shader for light vector
+    void main() {
+      gl_Position = u_ProjectionMatrix * u_ViewMatrix * u_ModelMatrix * a_Position;
+      v_UV = a_UV;
+      vec4 worldPos = u_ModelMatrix * a_Position;
+      v_WorldPos = worldPos.xyz;
+      v_Normal   = normalize(vec3(u_NormalMatrix * vec4(a_Normal, 0.0)));
+    }
+  </script>
+
+  <!-- ===================== FRAGMENT SHADER =================== -->
+  <script id="fshader" type="x-shader/x-fragment">
+    precision mediump float;
+    varying vec2 v_UV;
+    varying vec3 v_Normal;
+    varying vec3 v_WorldPos;
+    uniform sampler2D u_Sampler0;
+    uniform sampler2D u_Sampler1;
+    uniform sampler2D u_Sampler2;
+    uniform sampler2D u_Sampler3;
+    uniform sampler2D u_Sampler4;
+    uniform sampler2D u_Sampler5;
+    uniform sampler2D u_Sampler6;
+    uniform vec4  u_BaseColor;
+    uniform float u_texColorWeight;
+    uniform int   u_whichTexture;
+    // u_whichTexture: -2=unlit flat, -3=lit flat, -1=UV debug, 0-5=textures
+    uniform int   u_normalViz;
+
+    // Lighting uniforms
+    uniform int   u_lightOn;      // master toggle
+    uniform int   u_pointOn;      // point light enable
+    uniform int   u_spotOn;       // spotlight enable
+    uniform vec3  u_LightPos;     // point light world position
+    uniform vec3  u_LightColor;   // point light RGB color
+    uniform vec3  u_CameraPos;    // world-space eye
+    uniform vec3  u_spotPos;      // spotlight world position
+    uniform vec3  u_spotDir;      // spotlight aim direction (normalized)
+    uniform vec3  u_spotColor;    // spotlight RGB color
+    uniform float u_spotCutoff;   // cos of cone half-angle
+
+    // Horror fog
+    uniform int   u_fogOn;
+    uniform vec3  u_fogColor;
+    uniform float u_fogRange;
+
+    // Phong contribution from one light: returns diffuse + specular
+    vec3 phong(vec3 N, vec3 V, vec3 L, vec3 lightColor, vec3 base) {
+      float diff = max(dot(N, L), 0.0);
+      vec3  R    = reflect(-L, N);
+      float spec = (diff > 0.0) ? pow(max(dot(R, V), 0.0), 32.0) : 0.0;
+      return diff * lightColor * base + 0.8 * spec * lightColor;
+    }
+
+    void main() {
+      // Normal Viz overrides everything
+      if (u_normalViz == 1) {
+        gl_FragColor = vec4(v_Normal, 1.0);
+        return;
+      }
+
+      // -2 = skybox / unlit markers — no fog, no lighting
+      if (u_whichTexture == -2) {
+        gl_FragColor = u_BaseColor;
+        return;
+      }
+
+      // Resolve material base color
+      vec3 baseColor;
+      if (u_whichTexture == -3) {
+        baseColor = u_BaseColor.rgb;
+      } else if (u_whichTexture == -1) {
+        baseColor = vec3(v_UV.x, v_UV.y, 1.0);
+      } else {
+        vec4 tc;
+        if      (u_whichTexture == 0) tc = texture2D(u_Sampler0, v_UV);
+        else if (u_whichTexture == 1) tc = texture2D(u_Sampler1, v_UV);
+        else if (u_whichTexture == 2) tc = texture2D(u_Sampler2, v_UV);
+        else if (u_whichTexture == 3) tc = texture2D(u_Sampler3, v_UV);
+        else if (u_whichTexture == 4) tc = texture2D(u_Sampler4, v_UV);
+        else if (u_whichTexture == 5) tc = texture2D(u_Sampler5, v_UV);
+        else                          tc = texture2D(u_Sampler6, v_UV);
+        baseColor = mix(u_BaseColor, tc, u_texColorWeight).rgb;
+      }
+
+      vec3 color;
+      if (u_lightOn == 0) {
+        color = baseColor;
+      } else {
+        vec3 N = normalize(v_Normal);
+        vec3 V = normalize(u_CameraPos - v_WorldPos);
+        color  = 0.3 * baseColor;
+
+        if (u_pointOn == 1) {
+          vec3 L = normalize(u_LightPos - v_WorldPos);
+          color += phong(N, V, L, u_LightColor, baseColor);
+        }
+
+        if (u_spotOn == 1) {
+          vec3  Ls    = normalize(u_spotPos - v_WorldPos);
+          float theta = dot(-Ls, normalize(u_spotDir));
+          if (theta > u_spotCutoff) {
+            float falloff = pow(theta, 20.0);
+            color += falloff * phong(N, V, Ls, u_spotColor, baseColor);
+          }
+        }
+      }
+
+      // Horror fog — quadratic, matches dark sky colour
+      float fogDist   = length(v_WorldPos - u_CameraPos);
+      float fogFactor = clamp(fogDist / u_fogRange, 0.0, 1.0);
+      fogFactor = fogFactor * fogFactor;
+      color = mix(color, u_fogColor, fogFactor * float(u_fogOn));
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  </script>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <!-- HUD (pointer-events:none so it doesn't block pointer lock) -->
+  <div id="hud">
+    <div id="fps">FPS: --</div>
+    <div id="pos">Pos: --</div>
+    <div id="collected">Collected: 0 / 0</div>
+    <div id="fetch-status" style="margin-top:4px;font-size:12px;color:#adf"></div>
+    <div style="margin-top:6px;font-size:12px;color:#aaa">
+      WASD=move  Q/E=pan  click=lock<br>
+      G=throw ball
+    </div>
+  </div>
+
+  <!-- UI controls panel (has pointer events) -->
+  <div id="controls">
+    <button id="btn-normalviz">Normal Viz: OFF</button>
+  </div>
+
+  <!-- Mode selection (shown on load, hidden after choice) -->
+  <div id="mode-select">
+    <h1>CSE 160 — ASGN4</h1>
+    <p>Select your experience</p>
+    <button class="mode-btn" id="btn-assignment">Assignment Mode</button>
+    <p class="mode-desc">Standard lighting demo</p>
+    <button class="mode-btn" id="btn-horror">HORROR MODE</button>
+    <p class="mode-desc">You are not alone in the maze...</p>
+  </div>
+
+  <!-- Horror intro (fades in after pointer lock in horror mode) -->
+  <div id="intro-overlay">
+    <div id="intro-title">LOST</div>
+    <div id="intro-sub">Something is hunting you...</div>
+  </div>
+
+  <!-- Red vignette (gets darker as monster approaches) -->
+  <div id="vignette"></div>
+
+  <!-- Caught screen -->
+  <div id="caught">
+    <div>CAUGHT</div>
+    <p style="font-size:22px;color:#ccc;margin-top:16px">You were not alone.</p>
+    <p style="font-size:15px;color:#555;margin-top:8px">Refresh to try again.</p>
+  </div>
+
+  <div id="crosshair">+</div>
+  <div id="click-to-play">Click to resume</div>
+  <div id="win"><div>You Win!</div><p>All gold collected!</p></div>
+
+  <script src="lib/cuon-matrix.js"></script>
+  <script src="lib/cuon-utils.js"></script>
+  <script src="lib/webgl-utils.js"></script>
+  <script src="cube.js"></script>
+  <script src="sphere.js"></script>
+  <script src="model.js"></script>
+  <script src="camera.js"></script>
+  <script src="world.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
