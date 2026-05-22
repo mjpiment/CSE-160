@@ -31,16 +31,18 @@ let monsterActivateTimer = 0;
 // ---- Audio ----
 let audio = null;
 
-// Spotlight: elevated position off to one side, aimed at scene center
-const SPOT_POS = [52, 15, 10];
-const SPOT_TARGET = [32, 0, 32];
-(function() {
-  const dx = SPOT_TARGET[0]-SPOT_POS[0], dy = SPOT_TARGET[1]-SPOT_POS[1], dz = SPOT_TARGET[2]-SPOT_POS[2];
+// Spotlight: mutable position always aimed at map center
+let g_spotPos    = [52, 15, 10];
+let g_spotColor  = [1, 0.85, 0.6];
+const g_spotTarget  = [32, 0, 32];
+const SPOT_CUTOFF   = Math.cos(20 * Math.PI / 180);
+let g_spotDir = [0, 0, 0];
+function recomputeSpotDir() {
+  const dx = g_spotTarget[0]-g_spotPos[0], dy = g_spotTarget[1]-g_spotPos[1], dz = g_spotTarget[2]-g_spotPos[2];
   const len = Math.sqrt(dx*dx+dy*dy+dz*dz);
-  SPOT_POS.dir = [dx/len, dy/len, dz/len];
-})();
-const SPOT_COLOR   = [1, 0.85, 0.6];   // warm yellow-white
-const SPOT_CUTOFF  = Math.cos(20 * Math.PI / 180);  // ~0.940
+  g_spotDir[0]=dx/len; g_spotDir[1]=dy/len; g_spotDir[2]=dz/len;
+}
+recomputeSpotDir();
 
 // Reusable temp matrix for normal-matrix computation (avoids per-frame allocation)
 const _nm = new Matrix4();
@@ -152,11 +154,17 @@ function main() {
   setupControls();
   setupModeSelect();
 
-  document.getElementById('btn-lighting').addEventListener('click', () => {
-    g_lightingOn = !g_lightingOn;
-    document.getElementById('btn-lighting').textContent =
-      g_lightingOn ? 'Lighting: ON' : 'Lighting: OFF';
-  });
+  function togBtn(id, getState, setState) {
+    const btn = document.getElementById(id);
+    btn.addEventListener('click', () => {
+      setState(!getState());
+      btn.textContent = getState() ? 'ON' : 'OFF';
+      btn.classList.toggle('off', !getState());
+    });
+  }
+  togBtn('btn-lighting', () => g_lightingOn, v => { g_lightingOn = v; });
+  togBtn('btn-point',    () => g_pointOn,    v => { g_pointOn    = v; });
+  togBtn('btn-spot',     () => g_spotOn,     v => { g_spotOn     = v; });
 
   document.getElementById('btn-normalviz').addEventListener('click', () => {
     normalVizOn = !normalVizOn;
@@ -164,21 +172,33 @@ function main() {
       normalVizOn ? 'Normal Viz: ON' : 'Normal Viz: OFF';
   });
 
-  function bindSlider(id, valId, decimals, setter) {
-    const el = document.getElementById(id);
-    const valEl = document.getElementById(valId);
-    el.addEventListener('input', () => {
-      const v = parseFloat(el.value);
-      setter(v);
-      valEl.textContent = v.toFixed(decimals);
-    });
+  function hexToRgb01(hex) {
+    return [
+      parseInt(hex.slice(1,3),16)/255,
+      parseInt(hex.slice(3,5),16)/255,
+      parseInt(hex.slice(5,7),16)/255
+    ];
   }
+  document.getElementById('cp-point').addEventListener('input', e => {
+    const c = hexToRgb01(e.target.value);
+    g_lightColor[0]=c[0]; g_lightColor[1]=c[1]; g_lightColor[2]=c[2];
+  });
+  document.getElementById('cp-spot').addEventListener('input', e => {
+    const c = hexToRgb01(e.target.value);
+    g_spotColor[0]=c[0]; g_spotColor[1]=c[1]; g_spotColor[2]=c[2];
+  });
 
-  bindSlider('sl-lr', 'val-lr', 2, v => { g_lightColor[0] = v; });
-  bindSlider('sl-lg', 'val-lg', 2, v => { g_lightColor[1] = v; });
-  bindSlider('sl-lb', 'val-lb', 2, v => { g_lightColor[2] = v; });
-  bindSlider('sl-lx', 'val-lx', 1, v => { g_lightAnimate = false; g_lightPos[0] = v; });
-  bindSlider('sl-ly', 'val-ly', 1, v => { g_lightPos[1] = v; });
+  function bindSlider(id, valId, dec, setter) {
+    const el = document.getElementById(id);
+    const ve = document.getElementById(valId);
+    el.addEventListener('input', () => { const v=parseFloat(el.value); setter(v); ve.textContent=v.toFixed(dec); });
+  }
+  bindSlider('sl-lx','val-lx',1, v=>{ g_lightAnimate=false; g_lightPos[0]=v; });
+  bindSlider('sl-ly','val-ly',1, v=>{ g_lightPos[1]=v; });
+  bindSlider('sl-lz','val-lz',1, v=>{ g_lightAnimate=false; g_lightPos[2]=v; });
+  bindSlider('sl-sx','val-sx',1, v=>{ g_spotPos[0]=v; recomputeSpotDir(); });
+  bindSlider('sl-sy','val-sy',1, v=>{ g_spotPos[1]=v; recomputeSpotDir(); });
+  bindSlider('sl-sz','val-sz',1, v=>{ g_spotPos[2]=v; recomputeSpotDir(); });
 
   window.addEventListener('resize', () => {
     canvas.width  = window.innerWidth;
@@ -356,9 +376,9 @@ function draw(now) {
   gl.uniform1i(u_lightOn,  g_lightingOn ? 1 : 0);
   gl.uniform1i(u_pointOn,  g_pointOn    ? 1 : 0);
   gl.uniform1i(u_spotOn,   g_spotOn     ? 1 : 0);
-  gl.uniform3f(u_spotPos,     SPOT_POS[0], SPOT_POS[1], SPOT_POS[2]);
-  gl.uniform3f(u_spotDir,     SPOT_POS.dir[0], SPOT_POS.dir[1], SPOT_POS.dir[2]);
-  gl.uniform3f(u_spotColor,   SPOT_COLOR[0],   SPOT_COLOR[1],   SPOT_COLOR[2]);
+  gl.uniform3f(u_spotPos,   g_spotPos[0],   g_spotPos[1],   g_spotPos[2]);
+  gl.uniform3f(u_spotDir,   g_spotDir[0],   g_spotDir[1],   g_spotDir[2]);
+  gl.uniform3f(u_spotColor, g_spotColor[0], g_spotColor[1], g_spotColor[2]);
   gl.uniform1f(u_spotCutoff,  SPOT_CUTOFF);
 
   const V = camera.getViewMatrix();
@@ -439,12 +459,12 @@ function draw(now) {
   world.unitCube.bind(a_Position, a_UV, a_Normal);
   world.unitCube.draw();
 
-  // Spotlight marker — small orange cube at SPOT_POS, unlit
+  // Spotlight marker — small cube at g_spotPos, unlit
   const spotMarkerM = new Matrix4();
-  spotMarkerM.setTranslate(SPOT_POS[0], SPOT_POS[1], SPOT_POS[2]);
+  spotMarkerM.setTranslate(g_spotPos[0], g_spotPos[1], g_spotPos[2]);
   spotMarkerM.scale(0.3, 0.3, 0.3);
   gl.uniformMatrix4fv(u_ModelMatrix, false, spotMarkerM.elements);
-  gl.uniform4f(u_BaseColor, SPOT_COLOR[0], SPOT_COLOR[1], SPOT_COLOR[2], 1.0);
+  gl.uniform4f(u_BaseColor, g_spotColor[0], g_spotColor[1], g_spotColor[2], 1.0);
   gl.uniform1f(u_texColorWeight, 0.0);
   gl.uniform1i(u_whichTexture, -2);
   world.unitCube.bind(a_Position, a_UV, a_Normal);
