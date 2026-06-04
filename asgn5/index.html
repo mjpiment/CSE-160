@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSE 160 – Assignment 5: Lunar Outpost</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #000; font-family: monospace; }
+    canvas { display: block; }
+
+    #ui {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      color: #cde;
+      text-shadow: 0 0 6px #6af;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #ui h1 { font-size: 1.1rem; margin-bottom: 4px; }
+    #ui p  { font-size: 0.72rem; opacity: 0.85; line-height: 1.6; }
+
+    #wow-badge {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      background: rgba(0,5,20,0.82);
+      border: 1px solid #48f;
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: #bdf;
+      font-size: 0.7rem;
+      max-width: 300px;
+      line-height: 1.55;
+      z-index: 10;
+    }
+    #wow-badge strong { color: #6ef; display: block; margin-bottom: 4px; }
+    #wow-badge button {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #6ef;
+      font-size: 1rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three":         "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="ui">
+    <h1>Lunar Outpost</h1>
+    <p>
+      LMB drag – orbit &nbsp;|&nbsp; RMB drag – pan<br>
+      Scroll – zoom &nbsp;|&nbsp; WASD – move &nbsp;|&nbsp; Space – rise &nbsp;|&nbsp; Shift – descend
+    </p>
+  </div>
+
+  <div id="wow-badge">
+    <button onclick="document.getElementById('wow-badge').remove()">&times;</button>
+    <strong>WOW FEATURE</strong>
+    Alien boid AI: 20 alien creatures roam the lunar surface using
+    flocking behavior (separation, alignment, cohesion). UFOs circle
+    overhead with animated tractor-beam spotlights. Rocket engine
+    glows with pulsing point lights. WASD + Space/Shift free-fly
+    lets you explore the whole Moon.
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
